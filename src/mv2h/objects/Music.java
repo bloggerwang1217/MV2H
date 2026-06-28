@@ -94,8 +94,6 @@ public class Music {
 		for (Voice voice : voices) {
 			voice.createConnections();
 		}
-
-		this.meter.createGroupings();
 	}
 
 	/**
