@@ -53,6 +53,15 @@ public class Main {
 	private static boolean PERFORM_ALIGNMENT = false;
 
 	/**
+	 * A flag representing if alignment should keep a single minimum-cost path rather than
+	 * scoring every one of them. Defaults to <code>false</code>. Can be set to <code>true</code>
+	 * with the <code>-s</code> flag, which also sets {@link #PERFORM_ALIGNMENT} to true.
+	 * <br>
+	 * @see mv2h.tools.Aligner#getSinglePathAlignment(mv2h.objects.Music, mv2h.objects.Music)
+	 */
+	private static boolean SINGLE_PATH = false;
+
+	/**
 	 * A flag representing if the alignment should be printed or not. Defaults to <code>false</code>.
 	 * Can be set to <code>true</code> with the <code>-A</code> flag (which also sets
 	 * {@link #PERFORM_ALIGNMENT} to true).
@@ -120,10 +129,12 @@ public class Main {
 							PRINT_ALIGNMENT = true;
 
 						case 'a':
-							DURATION_DELTA = 20;
-							ONSET_DELTA = 0;
-							GROUPING_EPSILON = 20;
-							PERFORM_ALIGNMENT = true;
+							setAlignmentDefaults();
+							break;
+
+						case 's':
+							SINGLE_PATH = true;
+							setAlignmentDefaults();
 							break;
 
 						case 'p':
@@ -204,7 +215,18 @@ public class Main {
 		Music transcription = Music.parseMusic(new Scanner(transcriptionFile));
 
 		// Get scores
-		if (PERFORM_ALIGNMENT) {
+		if (PERFORM_ALIGNMENT && SINGLE_PATH) {
+			// Score the one alignment reached by the fixed tie priority.
+			List<Integer> alignment = Aligner.getSinglePathAlignment(groundTruth, transcription);
+
+			if (PRINT_ALIGNMENT) {
+				System.out.println(getAlignmentString(groundTruth, transcription, alignment));
+				System.out.println();
+			}
+
+			System.out.println(groundTruth.evaluateTranscription(transcription.align(groundTruth, alignment)));
+
+		} else if (PERFORM_ALIGNMENT) {
 
 			// Choose the best possible alignment out of all potential alignments.
 			MV2H best = new MV2H(0, 0, 0, 0, 0);
@@ -429,6 +451,17 @@ public class Main {
 	 *
 	 * @param message The message to print to std err.
 	 */
+	/**
+	 * Switch to the tolerances used when a transcription is not time-aligned with the
+	 * ground truth, and request alignment.
+	 */
+	private static void setAlignmentDefaults() {
+		DURATION_DELTA = 20;
+		ONSET_DELTA = 0;
+		GROUPING_EPSILON = 20;
+		PERFORM_ALIGNMENT = true;
+	}
+
 	private static void argumentError(String message) {
 		StringBuilder sb = new StringBuilder(message).append('\n');
 
@@ -437,6 +470,9 @@ public class Main {
 
 		sb.append("-a = Perform DTW alignment to evaluate non-aligned transcriptions.\n");
 		sb.append("-A = Perform and print the DTW alignment.\n");
+		sb.append("-s = Perform DTW alignment, keeping a single minimum-cost alignment instead of scoring" +
+		          " every one of them. On equal cost, prefers the diagonal, then a ground truth deletion," +
+		          " then a transcription insertion.\n");
 
 		sb.append("-g FILE = Use the given FILE as the ground truth (defaults to std in).\n");
 		sb.append("-t FILE = Use the given FILE as the transcription (defaults to std in).\n");

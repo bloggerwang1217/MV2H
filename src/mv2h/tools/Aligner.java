@@ -1,6 +1,8 @@
 package mv2h.tools;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -44,6 +46,91 @@ public class Aligner {
 		}
 
 		return getPossibleAlignmentsFromMatrix(previousCells.size() - 1, previousCells.get(0).size() - 1, previousCells, alignmentCache);
+	}
+
+	/**
+	 * Get a single alignment of the given ground truth and transcription: the minimum-cost
+	 * alignment reached by preferring, on equal cost, the diagonal, then a ground truth
+	 * deletion, then a transcription insertion.
+	 *
+	 * Unlike {@link #getPossibleAlignments(Music, Music)}, which enumerates every minimum-cost
+	 * alignment so that the caller can score all of them, this keeps only one back-pointer per
+	 * cell. Complete scores of a few thousand note lists make the full candidate sets too large
+	 * to hold in memory.
+	 *
+	 * @param gt The ground truth.
+	 * @param m The transcription.
+	 *
+	 * @return An alignment containing, for each ground truth note list, the index of the
+	 * transcription note list it is aligned to, or -1 if it was not aligned with any.
+	 */
+	public static List<Integer> getSinglePathAlignment(Music gt, Music m) {
+		List<Map<Integer, Integer>> gtNoteMaps = getNotePitchMaps(gt.getNoteLists());
+		List<Map<Integer, Integer>> mNoteMaps = getNotePitchMaps(m.getNoteLists());
+
+		int gtSize = gtNoteMaps.size();
+		int mSize = mNoteMaps.size();
+		if (gtSize == 0 || mSize == 0) {
+			throw new IllegalArgumentException("Cannot align an empty score");
+		}
+
+		// 0 = diagonal, -1 = ground truth note list unaligned, 1 = transcription note list unaligned.
+		byte[][] previousCells = new byte[gtSize + 1][mSize + 1];
+
+		double[] previousRow = new double[mSize + 1];
+		Arrays.fill(previousRow, Double.POSITIVE_INFINITY);
+		previousRow[0] = 0.0;
+
+		for (int i = 1; i <= gtSize; i++) {
+			double[] row = new double[mSize + 1];
+			row[0] = Double.POSITIVE_INFINITY;
+
+			for (int j = 1; j <= mSize; j++) {
+				double best = previousRow[j - 1] + getDistance(gtNoteMaps.get(i - 1), mNoteMaps.get(j - 1));
+				byte previousCell = 0;
+
+				double gtUnaligned = previousRow[j] + Main.NON_ALIGNMENT_PENALTY;
+				if (gtUnaligned < best) {
+					best = gtUnaligned;
+					previousCell = -1;
+				}
+
+				double mUnaligned = row[j - 1] + Main.NON_ALIGNMENT_PENALTY;
+				if (mUnaligned < best) {
+					best = mUnaligned;
+					previousCell = 1;
+				}
+
+				row[j] = best;
+				previousCells[i][j] = previousCell;
+			}
+
+			previousRow = row;
+		}
+
+		List<Integer> alignment = new ArrayList<Integer>(gtSize);
+		int i = gtSize;
+		int j = mSize;
+		while (i > 0 || j > 0) {
+			switch (previousCells[i][j]) {
+				case 0:
+					alignment.add(j - 1);
+					i--;
+					j--;
+					break;
+
+				case -1:
+					alignment.add(-1);
+					i--;
+					break;
+
+				default:
+					j--;
+			}
+		}
+		Collections.reverse(alignment);
+
+		return alignment;
 	}
 
 	/**

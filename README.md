@@ -1,5 +1,14 @@
 # MV2H
 
+> **Fork notice.** This is a fork of [apmcleod/MV2H](https://github.com/apmcleod/MV2H),
+> branched at commit `7915584`. It adds one alignment flag, `-s`
+> ([usage](#single-path-alignment-fork-addition)), which scores a transcription on a single
+> minimum-cost alignment instead of the best of all minimum-cost alignments. Nothing else is
+> changed: the metric, the component scorers, the converters and the file formats are the
+> upstream ones, and the original MIT licence and authorship are retained. `-a` and `-s` give
+> different numbers; this fork makes no claim that they are equivalent. Please cite the
+> original MV2H paper below for the metric itself.
+
 This is the code for the MV2H metric, originally proposed in my 2018 ISMIR paper.
 
 If you use the metric, please cite it:
@@ -35,6 +44,24 @@ _NOTE: You should use the same value throughout your whole evaluation for a fair
 
 * `-v`: Use verbose printing. With `-a`, this will print the evaluation score for each alignment.
 With `-A`, this will also print each alignment itself.
+
+### Single-Path Alignment (fork addition)
+`-a` enumerates the minimum-cost DTW alignments and reports the highest MV2H among them, so
+the score depends on which of the tied optimal paths happens to score best. `-s` commits to
+one path instead: on equal cost it prefers the diagonal, then a ground truth deletion, then a
+transcription insertion, and it scores that path alone.
+
+* `java -cp bin mv2h.Main -g gt.txt -t transcription.txt -s [-p DOUBLE] [-A]`
+
+* `-s` implies `-a`: it sets the same tolerances (onset 0 ms, duration 20 ms, grouping
+  20 ms) and takes the same `-p` insertion and deletion penalty.
+* `-A` prints the chosen alignment before the scores, as it does with `-a`.
+* Alignment cost, component scoring and time warping are the upstream methods, called
+  unchanged; `-s` only decides which alignment is scored.
+
+`-s` also keeps one back-pointer per cell rather than every minimum-cost predecessor, so it
+runs over complete scores of several thousand note lists, where enumerating all alignments
+does not fit in memory.
 
 ### Aligned Data
 To evaluate a time-aligned transcription and ground truth:
